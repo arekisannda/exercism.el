@@ -230,7 +230,7 @@ Reading from CONFIG-FILE-PATH if provided."
   (unless exercism--workspace (exercism-setup))
   (unless exercism--current-track (aio-await (exercism-set-track)))
   (unless (and exercism--exercise-metadata exercism--exercise-files)
-    (aio-await (exercism-choose-exercise)))
+    (aio-await (exercism-set-exercise)))
 
   (exercism-layout)
 
@@ -367,7 +367,7 @@ Reading from CONFIG-FILE-PATH if provided."
                    exercises))
         ))))
 
-(aio-defun exercism-choose-exercise ()
+(aio-defun exercism-set-exercise ()
   "Choose an exercise from the current track."
   (interactive)
   (unless exercism--current-track (aio-await (exercism-set-track)))
@@ -452,9 +452,16 @@ Reading from CONFIG-FILE-PATH if provided."
              (test-buffer (get-buffer-create exercism-result-buffer-name))
              (result (aio-await (exercism--run-command
                                  (concat (executable-find exercism-cmd) " test")))))
+
         (with-current-buffer test-buffer
           (erase-buffer)
-          (insert result)))
+          (insert result))
+
+        (display-buffer test-buffer
+                        '((display-buffer-reuse-window
+                           exercism--display-result)
+                          (reusable-frames . visible))))
+
     (exercism--error "Exercise is not set")))
 
 (aio-defun exercism-submit-solution ()
@@ -476,7 +483,7 @@ Reading from CONFIG-FILE-PATH if provided."
                    (y-or-n-p "Open submission in browser? "))
               (browse-url exercise-url))))
 
-    (exercism--error "Exercise is not set")))
+    (exercism--error "Exercise not set")))
 
 (aio-defun exercism--execute-solutions-api (action)
   "Perform Exercism solution API request for ACTION."
@@ -509,7 +516,7 @@ Reading from CONFIG-FILE-PATH if provided."
                 (exercism--error (plist-get opt :error-fmt) error-info)
               (exercism--info (plist-get opt :success-fmt) track exercise-name)))
         (exercism--error "Invalid action %s" (symbol-name action)))
-    (exercism--error "Exercise is set")))
+    (exercism--error "Exercise not set")))
 
 (defun exercism-mark-completed ()
   "Mark exercise as complete."
@@ -525,6 +532,66 @@ Reading from CONFIG-FILE-PATH if provided."
   "Publish exercise solution."
   (interactive)
   (exercism--execute-solutions-api 'unpublish))
+
+(defun exercism-open-readme ()
+  "Open exercise `README.md`."
+  (interactive)
+  (if-let ((_ (and exercism--exercise-metadata exercism--exercise-files)))
+
+      (let* ((track (gethash "track" exercism--exercise-metadata))
+             (exercise (gethash "exercise" exercism--exercise-metadata))
+             (track-dir (expand-file-name track exercism--workspace))
+             (exercise-dir (expand-file-name exercise track-dir))
+             (description-buffer (find-file-noselect (expand-file-name "README.md" exercise-dir))))
+
+        (with-current-buffer description-buffer
+          (markdown-view-mode))
+        (display-buffer description-buffer
+                        '((display-buffer-reuse-window
+                           exercism--display-description)
+                          (reusable-frames . visible))))
+
+    (exercism--error "Exercise not set")))
+
+(defun exercism-open-help ()
+  "Open exercise `HELP.md`."
+  (interactive)
+  (if-let ((_ (and exercism--exercise-metadata exercism--exercise-files)))
+
+      (let* ((track (gethash "track" exercism--exercise-metadata))
+             (exercise (gethash "exercise" exercism--exercise-metadata))
+             (track-dir (expand-file-name track exercism--workspace))
+             (exercise-dir (expand-file-name exercise track-dir))
+             (description-buffer (find-file-noselect (expand-file-name "HELP.md" exercise-dir))))
+
+        (with-current-buffer description-buffer
+          (markdown-view-mode))
+        (display-buffer description-buffer
+                        '((display-buffer-reuse-window
+                           exercism--display-description)
+                          (reusable-frames . visible))))
+
+    (exercism--error "Exercise not set")))
+
+(defun exercism-open-tests ()
+  "Open exercise test suite."
+  (interactive)
+  (if-let ((_ (and exercism--exercise-metadata exercism--exercise-files)))
+
+      (let* ((track (gethash "track" exercism--exercise-metadata))
+             (exercise (gethash "exercise" exercism--exercise-metadata))
+             (track-dir (expand-file-name track exercism--workspace))
+             (exercise-dir (expand-file-name exercise track-dir))
+             (tests-file-name (aref (gethash "test" exercism--exercise-files) 0))
+             (tests-buffer (find-file-noselect (expand-file-name tests-file-name exercise-dir))))
+
+        (display-buffer tests-buffer
+                        '((display-buffer-reuse-window
+                           exercism--display-result)
+                          (reusable-frames . visible)))
+        )
+
+    (exercism--error "Exercise not set")))
 
 (provide 'exercism)
 
